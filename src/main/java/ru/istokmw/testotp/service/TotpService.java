@@ -44,6 +44,6 @@ public class TotpService {
     }
 
     public Mono<Boolean> register(LoginRequestDto loginRequestDto) {
-        return userRepository.insertMember(loginRequestDto.getEmail(), loginRequestDto.getPassword()).defaultIfEmpty(false);
+        return userRepository.insertMember(loginRequestDto.email(), loginRequestDto.password()).defaultIfEmpty(false);
     }
 }
