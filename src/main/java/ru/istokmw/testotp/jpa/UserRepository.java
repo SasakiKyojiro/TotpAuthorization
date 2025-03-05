@@ -12,6 +12,12 @@ public interface UserRepository extends R2dbcRepository<Member, UUID> {
 
     Mono<Member> findById(UUID id);
 
+    @Query("INSERT INTO auth.member (name, password_hash) " +
+            "VALUES (:login, :password) " +
+            "ON CONFLICT (name) DO NOTHING " +
+            "RETURNING true AS success")
+    Mono<Boolean> insertMember(String login, String password);
+
     @Query("SELECT id FROM auth.member Where name=:username")
     Mono<UUID> findIdByName(String username);
 

@@ -4,6 +4,7 @@ package ru.istokmw.testotp.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import ru.istokmw.testotp.dto.LoginRequestDto;
 import ru.istokmw.testotp.integration.TotpManager;
 import ru.istokmw.testotp.jpa.Member;
 import ru.istokmw.testotp.jpa.TOTP;
@@ -42,4 +43,7 @@ public class TotpService {
         return totpManager.verifyCode(secret, code);
     }
 
+    public Mono<Boolean> register(LoginRequestDto loginRequestDto) {
+        return userRepository.insertMember(loginRequestDto.getEmail(), loginRequestDto.getPassword()).defaultIfEmpty(false);
+    }
 }
