@@ -5,7 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.util.Date;
+import java.time.LocalDate;
 import java.util.UUID;
 
 
@@ -20,7 +20,7 @@ public class Member {
     @Column(value = "password_hash")
     private String password;
     @Column(value = "created_at")
-    private Date createdAt;
+    private LocalDate createdAt;
     @Column(value = "last_login")
-    private Date lastLogin;
+    private LocalDate lastLogin;
 }

@@ -1,13 +1,12 @@
 package ru.istokmw.testotp.jpa;
 
 
-
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.util.Date;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Data
@@ -21,9 +20,9 @@ public class TOTP {
     private String secret;
 
     @Column(value = "issued_at")
-    private Date issuedAt;
+    private LocalDate issuedAt;
     @Column(value = "last_used")
-    private Date lastUsed;
+    private LocalDate lastUsed;
 
     @Column(value = "recovery_codes")
     private String recoveryCodes;
