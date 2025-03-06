@@ -16,12 +16,12 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/")
-public class ApiController {
+@RequestMapping("/user")
+public class MemberController {
 
     private final TotpService totpService;
 
-    public ApiController(TotpService totpService) {
+    public MemberController(TotpService totpService) {
         this.totpService = totpService;
     }
 
@@ -30,11 +30,29 @@ public class ApiController {
         return totpService.register(loginRequestDto)
                 .map(isRegistered -> {
                     if (isRegistered) {
-                        return ResponseEntity.ok("Регистрация прошла успешно!");
+                        return ResponseEntity
+                                .ok("Регистрация прошла успешно!");
                     } else {
-                        return ResponseEntity.badRequest()
+                        return ResponseEntity
+                                .badRequest()
                                 .body("Регистрация не удалась. Возможно, пользователь уже существует.");
                     }
+                })
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("Внутренняя ошибка сервера: " + e.getMessage()))).block();
+    }
+
+    @PostMapping("/delete")
+    public ResponseEntity<?> deleteUser(@RequestBody UUID userId) {
+        return totpService.deleteMember(userId)
+                .map(isDeleting -> {
+                    if (isDeleting)
+                        return ResponseEntity
+                                .ok("Пользователь успешно удалён");
+                    else
+                        return ResponseEntity
+                                .badRequest()
+                                .body("Удаление пользователя не удалось. Возможно пользователя с камим id нет.");
                 })
                 .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body("Внутренняя ошибка сервера: " + e.getMessage()))).block();
@@ -43,10 +61,13 @@ public class ApiController {
     @ExceptionHandler(WebExchangeBindException.class)
     public Mono<ResponseEntity<Map<String, String>>> handleValidationExceptions(WebExchangeBindException ex) {
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage())
-        );
-        return Mono.just(ResponseEntity.badRequest().body(errors));
+        ex.getBindingResult()
+                .getFieldErrors()
+                .forEach(error -> errors.put(error.getField(), error.getDefaultMessage())
+                );
+        return Mono.just(ResponseEntity
+                .badRequest()
+                .body(errors));
     }
 
     @PostMapping("/totp")

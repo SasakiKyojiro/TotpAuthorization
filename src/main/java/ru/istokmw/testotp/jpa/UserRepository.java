@@ -21,4 +21,7 @@ public interface UserRepository extends R2dbcRepository<Member, UUID> {
     @Query("SELECT id FROM auth.member Where name=:username")
     Mono<UUID> findIdByName(String username);
 
+    @Query("DELETE FROM auth.member WHERE id = :id ")
+    Mono<Void> deleteById(UUID id);
+
 }

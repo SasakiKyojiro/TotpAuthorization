@@ -41,6 +41,14 @@ public class TotpService {
         return totpManager.verifyCode(secret, code);
     }
 
+    public Mono<Boolean> deleteMember(UUID id) {
+        return userRepository.findById(id)
+                .flatMap(user -> userRepository.deleteById(user.getId())
+                        .then(Mono.just(true)))
+                .defaultIfEmpty(false);
+
+    }
+
     public Mono<Boolean> register(LoginRequestDto loginRequestDto) {
         return userRepository.insertMember(loginRequestDto.email(), loginRequestDto.password())
                 .publishOn(Schedulers.boundedElastic())
