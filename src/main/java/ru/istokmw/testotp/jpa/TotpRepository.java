@@ -15,4 +15,14 @@ public interface TotpRepository extends R2dbcRepository<TOTP, UUID> {
             "ON CONFLICT (user_id) DO NOTHING " +
             "RETURNING true AS success")
     Mono<Boolean> insert(UUID id, String secret, String[] recoveryCodes);
+
+    @Query("SELECT otp_enable FROM auth.totp WHERE user_id=:userId")
+    Mono<Boolean> findEnabledById(UUID userId);
+
+    @Query("SELECT secret from auth.totp where user_id=" +
+            "( SELECT member.id from auth.member where name=:name )")
+    Mono<String> getSecret(String name);
+
+    @Query("SELECT secret from auth.totp where user_id=:id")
+    Mono<String> findSecretById(UUID id);
 }

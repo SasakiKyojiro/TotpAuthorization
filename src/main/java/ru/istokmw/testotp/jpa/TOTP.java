@@ -27,4 +27,6 @@ public class TOTP {
     @Column(value = "recovery_codes")
     private String recoveryCodes;
 
+    @Column(value = "otp_enable")
+    private Boolean enable;
 }

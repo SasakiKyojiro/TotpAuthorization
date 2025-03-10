@@ -36,11 +36,6 @@ public class MemberService {
         return userRepository.findById(userRepository.findIdByName(name));
     }
 
-
-    public boolean isTotpValid(String secret, String code) {
-        return totpManager.verifyCode(secret, code);
-    }
-
     public Mono<Boolean> deleteMember(UUID id) {
         return userRepository.findById(id)
                 .flatMap(user -> userRepository.deleteById(user.getId())
