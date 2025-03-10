@@ -16,12 +16,12 @@ import java.util.UUID;
 
 @Service
 @Slf4j
-public class TotpService {
+public class MemberService {
     private final TotpManager totpManager;
     private final TotpRepository totpRepository;
     private final UserRepository userRepository;
 
-    public TotpService(TotpManager totpManager, TotpRepository totpRepository, UserRepository userRepository) {
+    public MemberService(TotpManager totpManager, TotpRepository totpRepository, UserRepository userRepository) {
         this.totpManager = totpManager;
         this.totpRepository = totpRepository;
         this.userRepository = userRepository;
