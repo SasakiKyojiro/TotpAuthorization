@@ -43,21 +43,8 @@ public class AuthController {
         return authService.validateCred(codeVerification).flatMap(response -> Mono.just(ResponseEntity.ok().body(response)));
     }
 
-
-//    @PostMapping(value = "/login", produces = MediaType.IMAGE_PNG_VALUE)
-//    public Mono<ResponseEntity<byte[]>> login(@RequestBody @Validated LoginRequestDto login) {
-//        return authService.auth(login)
-//                .flatMap(isAuth -> {
-//                    if (isAuth) {
-//                        return authService.getQrCode(login);
-//                    } else
-//                        return Mono.error(new RuntimeException("Неверный логин или пароль"));
-//                });
-//        //.onErrorResume(e -> Mono.just(Mono.error("Внутренняя ошибка сервера: " + e.getMessage())))
-//    }
-//
-//    @PostMapping("/login/code")
-//    public boolean loginCode(@RequestBody String code) {
-//        return true;
-//    }
+    @PostMapping("/valid2fa")
+    public Mono<Boolean> valid2fa(@RequestBody @Validated CodeVerification codeVerification) {
+        return authService.valid2fa(codeVerification).flatMap(response -> Mono.just(true));
+    }
 }

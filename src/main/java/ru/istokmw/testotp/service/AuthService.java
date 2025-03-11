@@ -14,6 +14,8 @@ import ru.istokmw.testotp.integration.TotpManager;
 import ru.istokmw.testotp.jpa.TotpRepository;
 import ru.istokmw.testotp.jpa.UserRepository;
 
+import java.time.LocalDate;
+
 @Slf4j
 @Service
 public class AuthService {
@@ -56,17 +58,35 @@ public class AuthService {
 
     public Mono<Boolean> validateCred(CodeVerification codeVerification) {
         return totpManager.verifyCode(
-                totpRepository.getSecret(codeVerification.email()),
+                totpRepository.findSecretByUserName(codeVerification.email()),
                 codeVerification.code()
+        ).map(response -> {
+                    if (response)
+                        totpRepository.updateLastUsedById(userRepository.findIdByName(codeVerification.email()), LocalDate.now()).subscribe();
+                    return response;
+                }
         );
     }
 
+    public Mono<Boolean> valid2fa(CodeVerification codeVerification) {
+        return totpManager.verifyCode(
+                        totpRepository.findSecretByUserName(codeVerification.email()),
+                        codeVerification.code()
+                )
+                .publishOn(Schedulers.boundedElastic())
+                .map(response -> {
+                    if (response) {
+                        totpRepository.updateIssuedAtById(userRepository.findIdByName(codeVerification.email()), LocalDate.now()).subscribe();
+                    }
+                    return response;
+                });
+    }
 
     public Mono<ResponseEntity<byte[]>> getQrCode(EmailDto login) {
         log.info("getQrCode login: {}", login.email());
         return userRepository.findIdByName(login.email())
                 .switchIfEmpty(Mono.error(new RuntimeException("ID not found for user: " + login.email())))
-                .flatMap(uuid -> totpRepository.getSecret(login.email()))
+                .flatMap(uuid -> totpRepository.findSecretByUserName(login.email()))
                 .flatMap(row -> {
                     try {
                         return totpManager.getQrCode(login.email(), row)
@@ -77,7 +97,5 @@ public class AuthService {
                     }
                 })
                 .doOnError(e -> log.error("Error occurred: ", e));
-
-
     }
 }
