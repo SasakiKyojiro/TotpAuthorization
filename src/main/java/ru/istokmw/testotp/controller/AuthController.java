@@ -40,11 +40,11 @@ public class AuthController {
 
     @PostMapping("/login/otp")
     public Mono<ResponseEntity<Boolean>> otp(@RequestBody @Validated CodeVerification codeVerification) {
-        return authService.validateCred(codeVerification).flatMap(response -> Mono.just(ResponseEntity.ok().body(response)));
+        return authService.validateCred(codeVerification).map(response -> ResponseEntity.ok().body(response));
     }
 
     @PostMapping("/valid2fa")
-    public Mono<Boolean> valid2fa(@RequestBody @Validated CodeVerification codeVerification) {
-        return authService.valid2fa(codeVerification).flatMap(response -> Mono.just(true));
+    public Mono<ResponseEntity<Boolean>> valid2fa(@RequestBody @Validated CodeVerification codeVerification) {
+        return authService.valid2fa(codeVerification).map(response -> ResponseEntity.ok().body(response));
     }
 }

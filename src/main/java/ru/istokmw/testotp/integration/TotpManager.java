@@ -64,10 +64,6 @@ public class TotpManager {
         QrGenerator generator = new ZxingPngQrGenerator();
         byte[] imageData = generator.generate(data);
         return Mono.just(imageData);
-        //return Mono.just(new ByteArrayInputStream(imageData));
-        //String mimeType = generator.getImageMimeType();
-        //log.info("Generate QR code for mime type {}", mimeType);
-        //return Mono.just(getDataUriForImage(imageData, mimeType));
     }
 
     public Mono<ResponseEntity<byte[]>> getImage(byte[] imageBytes) {
@@ -75,13 +71,4 @@ public class TotpManager {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"preview.png\"")
                 .body(imageBytes));
     }
-
-
-//    public Mono<ResponseEntity<Flux<DataBuffer>>> getImage(InputStream stream) {
-//        Flux<DataBuffer> flux = DataBufferUtils.readInputStream(() -> stream, new DefaultDataBufferFactory(), 4096);
-//        return Mono.just(ResponseEntity.ok()
-//                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"qr.png\"")
-//                .contentType(MediaType.IMAGE_PNG)
-//                .body(flux));
-//    }
 }

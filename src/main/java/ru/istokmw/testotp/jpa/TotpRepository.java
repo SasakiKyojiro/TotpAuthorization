@@ -24,9 +24,6 @@ public interface TotpRepository extends R2dbcRepository<TOTP, UUID> {
             "( SELECT member.id from auth.member where name=:name )")
     Mono<String> findSecretByUserName(String name);
 
-    @Query("SELECT secret from auth.totp where user_id=:id")
-    Mono<String> findSecretById(UUID id);
-
     @Query("UPDATE auth.totp SET issued_at=:issuedAt WHERE user_id=:id")
     Mono<Void> updateIssuedAtById(Mono<UUID> id, LocalDate issuedAt);
 

@@ -58,14 +58,18 @@ public class AuthService {
 
     public Mono<Boolean> validateCred(CodeVerification codeVerification) {
         return totpManager.verifyCode(
-                totpRepository.findSecretByUserName(codeVerification.email()),
-                codeVerification.code()
-        ).map(response -> {
-                    if (response)
-                        totpRepository.updateLastUsedById(userRepository.findIdByName(codeVerification.email()), LocalDate.now()).subscribe();
-                    return response;
-                }
-        );
+                        totpRepository.findSecretByUserName(codeVerification.email()),
+                        codeVerification.code()
+                ).publishOn(Schedulers.boundedElastic())
+                .map(response -> {
+                            if (response)
+                                totpRepository
+                                        .updateLastUsedById(userRepository.findIdByName(codeVerification.email()), LocalDate.now())
+                                        .then()
+                                        .subscribe();
+                            return response;
+                        }
+                );
     }
 
     public Mono<Boolean> valid2fa(CodeVerification codeVerification) {
@@ -76,7 +80,9 @@ public class AuthService {
                 .publishOn(Schedulers.boundedElastic())
                 .map(response -> {
                     if (response) {
-                        totpRepository.updateIssuedAtById(userRepository.findIdByName(codeVerification.email()), LocalDate.now()).subscribe();
+                        totpRepository.updateIssuedAtById(userRepository.findIdByName(codeVerification.email()), LocalDate.now())
+                                .then()
+                                .subscribe();
                     }
                     return response;
                 });
