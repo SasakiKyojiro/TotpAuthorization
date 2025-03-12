@@ -42,7 +42,7 @@ public class SecurityConfiguration {
         http.authorizeExchange(authorizeExchangeSpec -> {
             authorizeExchangeSpec.pathMatchers(
                     "/auth/login",
-                    "/user/register"
+                    "/auth/register"
             ).permitAll();
             authorizeExchangeSpec.anyExchange().authenticated();
         });

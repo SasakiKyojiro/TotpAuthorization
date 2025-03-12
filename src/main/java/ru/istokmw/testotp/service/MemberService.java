@@ -4,8 +4,6 @@ package ru.istokmw.testotp.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
-import ru.istokmw.testotp.dto.LoginRequestDto;
 import ru.istokmw.testotp.integration.TotpManager;
 import ru.istokmw.testotp.jpa.Member;
 import ru.istokmw.testotp.jpa.TOTP;
@@ -44,17 +42,5 @@ public class MemberService {
 
     }
 
-    public Mono<Boolean> register(LoginRequestDto loginRequestDto) {
-        return userRepository.insertMember(loginRequestDto.email(), loginRequestDto.password())
-                .publishOn(Schedulers.boundedElastic())
-                .flatMap(result -> {
-                    if (result) {
-                        return userRepository.findIdByName(loginRequestDto.email())
-                                .flatMap(userId -> totpRepository.insert(userId, totpManager.generateSecret(), totpManager.generateRecovery()))
-                                .thenReturn(true);
-                    }
-                    return Mono.just(false);
-                });
-    }
 
 }

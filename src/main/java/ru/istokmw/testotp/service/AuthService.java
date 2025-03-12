@@ -2,10 +2,13 @@ package ru.istokmw.testotp.service;
 
 import dev.samstevens.totp.exceptions.QrGenerationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,8 @@ import ru.istokmw.testotp.jpa.UserRepository;
 import ru.istokmw.testotp.util.ServerHttpRequestHelper;
 
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -30,6 +35,10 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder encoder;
 
+    private final String sc = "Set-Cookie";
+
+    private final String domain = "localhost";
+
     public AuthService(TotpManager totpManager, TotpRepository totpRepository, UserRepository userRepository, ReactiveAuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
         this.totpManager = totpManager;
         this.totpRepository = totpRepository;
@@ -40,19 +49,39 @@ public class AuthService {
     }
 
 
-    public Mono<ValidateResponse> auth(LoginRequestDto login, ServerHttpRequest request) {
+    public Mono<ResponseEntity<ValidateResponse>> auth(LoginRequestDto login, ServerHttpRequest request) {
         String clientIp = ServerHttpRequestHelper.getClientIp(request);
         return authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(login.email(), login.password()))
+                .publishOn(Schedulers.boundedElastic())
                 .flatMap(authentication -> {
-                    String token = jwtTokenProvider.generateToken(authentication, clientIp);
+                    String username = login.email();
+                    Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+                    String roles = authorities.stream().map(GrantedAuthority::getAuthority).map(role -> role.replace("ROLE_", "")).collect(Collectors.joining(","));
+                    String token = jwtTokenProvider.generateToken(login.email(), roles, clientIp);
                     log.info("token generated: {}", token);
                     JwtResponse jwtResponse = new JwtResponse(token);
-                    return Mono.just(ValidateResponse.builder()
-                            .token(jwtResponse)
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.add(sc, String.format("userrole=%s; Path=/; Domain=.%s;", roles, domain));
+                    headers.add(sc, String.format("username=%s; Path=/; Domain=.%s;", username, domain));
+                    headers.add(sc, String.format("token=%s; Path=/; Domain=.%s;", token, domain));
+                    var valid = ValidateResponse.builder()
                             .success(true)
-                            .build());
-                });
+                            .token(jwtResponse)
+                            .f2pa(userRepository.findByName(username)
+                                    .publishOn(Schedulers.boundedElastic())
+                                    .mapNotNull(member -> totpRepository.findEnabledById(member.getId()).block()).block())
+                            .build();
+                    return Mono.just(ResponseEntity.status(HttpStatus.OK).headers(headers).body(valid));
+                })
+                .doOnError(ex -> {
+                            log.error("auth error: {}", ex.getMessage());
+                        }
+                ).onErrorReturn(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ValidateResponse.builder()
+                        .success(Boolean.FALSE)
+                        .message("Username or password is incorrect")
+                        .build())
+                );
 
 //        return userRepository.findIdByName(login.email())
 //                .flatMap(userRepository::findById)
@@ -112,7 +141,6 @@ public class AuthService {
     }
 
     public Mono<ResponseEntity<byte[]>> getQrCode(EmailDto login) {
-        log.info("getQrCode login: {}", login.email());
         return userRepository.findIdByName(login.email())
                 .switchIfEmpty(Mono.error(new RuntimeException("ID not found for user: " + login.email())))
                 .flatMap(uuid -> totpRepository.findSecretByUserName(login.email()))
@@ -126,5 +154,21 @@ public class AuthService {
                     }
                 })
                 .doOnError(e -> log.error("Error occurred: ", e));
+    }
+
+    public Mono<Boolean> register(LoginRequestDto loginRequestDto) {
+        String username = loginRequestDto.email();
+        String password = encoder.encode(loginRequestDto.password());
+        return userRepository.insertMember(username, password)
+                .defaultIfEmpty(false)
+                .publishOn(Schedulers.boundedElastic())
+                .flatMap(result -> {
+                    if (result) {
+                        return userRepository.findIdByName(loginRequestDto.email())
+                                .flatMap(userId -> totpRepository.insert(userId, totpManager.generateSecret(), totpManager.generateRecovery()))
+                                .thenReturn(true);
+                    }
+                    return Mono.just(false);
+                });
     }
 }

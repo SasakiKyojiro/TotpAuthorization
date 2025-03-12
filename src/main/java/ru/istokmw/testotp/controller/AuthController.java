@@ -1,5 +1,6 @@
 package ru.istokmw.testotp.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import ru.istokmw.testotp.dto.LoginRequestDto;
 import ru.istokmw.testotp.dto.ValidateResponse;
 import ru.istokmw.testotp.service.AuthService;
 
+@Slf4j
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -25,13 +27,28 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @PostMapping("/register")
+    public Mono<ResponseEntity<String>> register(@RequestBody @Validated LoginRequestDto loginRequestDto) {
+        return authService.register(loginRequestDto)
+                .map(isRegistered -> {
+                    if (isRegistered) {
+                        return ResponseEntity.ok("Регистрация прошла успешно!");
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("Регистрация не удалась. Возможно, пользователь уже существует.");
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.error("Ошибка при регистрации: {}", e.getMessage());
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body("Внутренняя ошибка сервера: " + e.getMessage()));
+                });
+    }
+
 
     @PostMapping("/login")
     public Mono<ResponseEntity<ValidateResponse>> login(ServerHttpRequest request, @RequestBody @Validated LoginRequestDto login) {
-        return authService.auth(login, request).flatMap(response -> {
-            if (response.getSuccess()) return Mono.just(ResponseEntity.ok().body(response));
-            else return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response));
-        });
+        return authService.auth(login, request);
     }
 
     @PostMapping(value = "/generate", produces = MediaType.IMAGE_PNG_VALUE)

@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
+import ru.istokmw.testotp.enums.Role;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -23,4 +24,5 @@ public class Member {
     private LocalDate createdAt;
     @Column(value = "last_login")
     private LocalDate lastLogin;
+    private Role role = Role.admin;
 }

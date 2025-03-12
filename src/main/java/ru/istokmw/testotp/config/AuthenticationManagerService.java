@@ -10,7 +10,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import ru.istokmw.testotp.jpa.UserRepository;
+import ru.istokmw.testotp.jpa.AuthRepository;
 
 import java.util.Arrays;
 
@@ -19,12 +19,9 @@ public class AuthenticationManagerService {
     private final PasswordEncoder passwordEncoder;
     private final ReactiveUserDetailsService userDetailsService;
 
-    public AuthenticationManagerService(UserRepository userRepository) {
+    public AuthenticationManagerService(AuthRepository userRepository) {
         this.passwordEncoder = new BCryptPasswordEncoder();
-        this.userDetailsService = username -> userRepository.findAuthByUsername(username)
-                .doOnNext(auth -> {
-                    System.out.println(auth.getUsername());
-                })
+        this.userDetailsService = username -> userRepository.findByUsername(username)
                 .map(userEntity -> User.withUsername(userEntity.getUsername())
                         .password(userEntity.getPassword())
                         .roles(Arrays.toString(userEntity.getRoles()))

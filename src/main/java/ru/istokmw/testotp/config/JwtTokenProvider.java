@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import reactor.core.publisher.Mono;
@@ -15,7 +14,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -38,17 +36,12 @@ public class JwtTokenProvider {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("HmacSHA512");
             keyGenerator.init(512);
             this.secretKey = keyGenerator.generateKey();
-            log.info("Generate secret key");
+            log.info("Generate secret key: {}", this.secretKey);
         }
         this.validityInMilliseconds = validityInMilliseconds;
     }
 
-    public String generateToken(Authentication authentication, String ipAddress) {
-        String username = authentication.getName();
-        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-        String roles = authorities.stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(","));
+    public String generateToken(String username, String roles, String ipAddress) {
         Date now = new Date();
         Date validity = new Date(now.getTime() + validityInMilliseconds);
         return Jwts.builder()
