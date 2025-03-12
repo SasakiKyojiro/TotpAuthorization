@@ -7,8 +7,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import reactor.core.publisher.Mono;
 import ru.istokmw.testotp.dto.LoginRequestDto;
-import ru.istokmw.testotp.jpa.Member;
-import ru.istokmw.testotp.jpa.TOTP;
 import ru.istokmw.testotp.service.MemberService;
 
 import java.util.HashMap;
@@ -70,16 +68,6 @@ public class MemberController {
         return Mono.just(ResponseEntity
                 .badRequest()
                 .body(errors));
-    }
-
-    @PostMapping("/totp")
-    public Mono<TOTP> findOtp(@RequestBody UUID uuid) {
-        return memberService.findById(uuid);
-    }
-
-    @GetMapping("/member")
-    public Mono<Member> findMemberByUsername(@RequestParam(name = "name") String username) {
-        return memberService.findMemberByName(username);
     }
 
 

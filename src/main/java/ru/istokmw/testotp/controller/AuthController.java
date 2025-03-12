@@ -3,6 +3,7 @@ package ru.istokmw.testotp.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,8 +27,8 @@ public class AuthController {
 
 
     @PostMapping("/login")
-    public Mono<ResponseEntity<ValidateResponse>> login(@RequestBody @Validated LoginRequestDto login) {
-        return authService.auth(login).flatMap(response -> {
+    public Mono<ResponseEntity<ValidateResponse>> login(ServerHttpRequest request, @RequestBody @Validated LoginRequestDto login) {
+        return authService.auth(login, request).flatMap(response -> {
             if (response.getSuccess()) return Mono.just(ResponseEntity.ok().body(response));
             else return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response));
         });
