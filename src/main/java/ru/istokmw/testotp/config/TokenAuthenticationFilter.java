@@ -2,7 +2,9 @@ package ru.istokmw.testotp.config;
 
 import jakarta.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -51,6 +53,13 @@ public class TokenAuthenticationFilter implements WebFilter {
                     } else {
                         return Mono.error(new BadCredentialsException("Invalid JWT token"));
                     }
-                });
+                })
+                .onErrorResume(BadCredentialsException.class, ex -> {
+                    exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                    DataBuffer dataBuffer = exchange.getResponse().bufferFactory()
+                            .wrap("Invalid JWT token".getBytes());
+                    return exchange.getResponse().writeWith(Mono.just(dataBuffer));
+                })
+                .then();
     }
 }

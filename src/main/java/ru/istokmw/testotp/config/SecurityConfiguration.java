@@ -30,26 +30,28 @@ public class SecurityConfiguration {
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
-        http.cors(cors -> cors.configurationSource(request -> {
-            CorsConfiguration config = new CorsConfiguration();
-            config.addAllowedOriginPattern("*");
-            config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-            config.setAllowedHeaders(Collections.singletonList("*"));
-            config.setAllowCredentials(true);
-            return config;
-        }));
-        http.csrf(ServerHttpSecurity.CsrfSpec::disable);
-        http.authorizeExchange(authorizeExchangeSpec -> {
-            authorizeExchangeSpec.pathMatchers(
-                    "/auth/login",
-                    "/auth/register"
-            ).permitAll();
-            authorizeExchangeSpec.anyExchange().authenticated();
-        });
-        http.authenticationManager(authenticationManagerService.getAuthenticationManager());
-        http.exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(authenticationEntryPoint()));
-        http.addFilterBefore(tokenAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION);
-        http.httpBasic(ServerHttpSecurity.HttpBasicSpec::disable);
+        http
+                .cors(cors -> cors.configurationSource(request -> {
+                    CorsConfiguration config = new CorsConfiguration();
+                    config.addAllowedOriginPattern("*");
+                    config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                    config.setAllowedHeaders(Collections.singletonList("*"));
+                    config.setAllowCredentials(true);
+                    return config;
+                }))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(authorizeExchangeSpec -> {
+                    authorizeExchangeSpec.pathMatchers(
+                            "/auth/login",
+                            "/auth/login/**",
+                            "/auth/register"
+                    ).permitAll();
+                    authorizeExchangeSpec.anyExchange().authenticated();
+                })
+                .authenticationManager(authenticationManagerService.getAuthenticationManager())
+                .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(authenticationEntryPoint()))
+                .addFilterBefore(tokenAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable);
         return http.build();
     }
 

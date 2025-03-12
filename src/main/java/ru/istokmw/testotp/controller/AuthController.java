@@ -61,8 +61,14 @@ public class AuthController {
         return authService.validateCred(codeVerification).map(response -> ResponseEntity.ok().body(response));
     }
 
+    @PostMapping("/login/validate")
+    public Mono<Boolean> validate(@RequestBody String jwt, ServerHttpRequest request) {
+        return authService.validate(request, jwt);
+    }
+
     @PostMapping("/valid2fa")
     public Mono<ResponseEntity<Boolean>> valid2fa(@RequestBody @Validated CodeVerification codeVerification) {
         return authService.valid2fa(codeVerification).map(response -> ResponseEntity.ok().body(response));
     }
+
 }

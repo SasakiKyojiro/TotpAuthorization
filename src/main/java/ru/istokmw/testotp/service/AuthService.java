@@ -2,6 +2,7 @@ package ru.istokmw.testotp.service;
 
 import dev.samstevens.totp.exceptions.QrGenerationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,77 +36,63 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder encoder;
 
-    private final String sc = "Set-Cookie";
+    private final String SC = "Set-Cookie";
+    private final String domain;
 
-    private final String domain = "localhost";
-
-    public AuthService(TotpManager totpManager, TotpRepository totpRepository, UserRepository userRepository, ReactiveAuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
+    public AuthService(TotpManager totpManager, TotpRepository totpRepository, UserRepository userRepository, ReactiveAuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider, @Value("${server.domain:localhost}") String domain) {
         this.totpManager = totpManager;
         this.totpRepository = totpRepository;
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.domain = domain;
         this.encoder = new BCryptPasswordEncoder();
     }
 
 
     public Mono<ResponseEntity<ValidateResponse>> auth(LoginRequestDto login, ServerHttpRequest request) {
         String clientIp = ServerHttpRequestHelper.getClientIp(request);
+        String username = login.email();
+
         return authenticationManager
-                .authenticate(new UsernamePasswordAuthenticationToken(login.email(), login.password()))
+                .authenticate(new UsernamePasswordAuthenticationToken(username, login.password()))
                 .publishOn(Schedulers.boundedElastic())
                 .flatMap(authentication -> {
-                    String username = login.email();
                     Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-                    String roles = authorities.stream().map(GrantedAuthority::getAuthority).map(role -> role.replace("ROLE_", "")).collect(Collectors.joining(","));
-                    String token = jwtTokenProvider.generateToken(login.email(), roles, clientIp);
-                    log.info("token generated: {}", token);
+                    String roles = authorities.stream()
+                            .map(GrantedAuthority::getAuthority)
+                            .map(role -> role.replace("ROLE_", ""))
+                            .collect(Collectors.joining(","));
+                    String token = jwtTokenProvider.generateToken(username, roles, clientIp);
+
                     JwtResponse jwtResponse = new JwtResponse(token);
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(sc, String.format("userrole=%s; Path=/; Domain=.%s;", roles, domain));
-                    headers.add(sc, String.format("username=%s; Path=/; Domain=.%s;", username, domain));
-                    headers.add(sc, String.format("token=%s; Path=/; Domain=.%s;", token, domain));
-                    var valid = ValidateResponse.builder()
-                            .success(true)
-                            .token(jwtResponse)
-                            .f2pa(userRepository.findByName(username)
-                                    .publishOn(Schedulers.boundedElastic())
-                                    .mapNotNull(member -> totpRepository.findEnabledById(member.getId()).block()).block())
-                            .build();
-                    return Mono.just(ResponseEntity.status(HttpStatus.OK).headers(headers).body(valid));
-                })
-                .doOnError(ex -> {
-                            log.error("auth error: {}", ex.getMessage());
-                        }
-                ).onErrorReturn(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ValidateResponse.builder()
-                        .success(Boolean.FALSE)
-                        .message("Username or password is incorrect")
-                        .build())
-                );
+                    String domainFormat = String.format(" Path=/; Domain=.%s;", domain);
 
-//        return userRepository.findIdByName(login.email())
-//                .flatMap(userRepository::findById)
-//                .publishOn(Schedulers.boundedElastic())
-//                .mapNotNull(member -> {
-//                    if (login.password().equals(member.getPassword())) {
-//                        return ValidateResponse.builder()
-//                                .success(true)
-//                                .f2pa(totpRepository.findEnabledById(member.getId()).block())
-//                                .build();
-//                    } else {
-//                        return ValidateResponse.builder()
-//                                .success(false)
-//                                .message("Username or password is incorrect")
-//                                .build();
-//
-//                    }
-//                })
-//                .defaultIfEmpty(
-//                        ValidateResponse.builder()
-//                                .success(Boolean.FALSE)
-//                                .message("User not found")
-//                                .build()
-//                );
+                    headers.add(SC, String.format("userrole=%s;%s", roles, domainFormat));
+                    headers.add(SC, String.format("username=%s;%s", username, domainFormat));
+                    headers.add(SC, String.format("token=%s;%s", token, domainFormat));
+
+                    return userRepository.findByName(username)
+                            .flatMap(user -> totpRepository.findEnabledById(user.getId()))
+                            .map(enable -> ValidateResponse.builder()
+                                    .success(true)
+                                    .token(jwtResponse)
+                                    .f2pa(enable)
+                                    .build())
+                            .map(response -> ResponseEntity.ok().headers(headers).body(response));
+                })
+                .doOnError(ex -> log.error("auth error: {}", ex.getMessage()))
+                .onErrorReturn(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                        ValidateResponse.builder()
+                                .success(false)
+                                .message("Username or password is incorrect")
+                                .build()));
+    }
+
+
+    public Mono<Boolean> validate(ServerHttpRequest request, String jwt) {
+        return jwtTokenProvider.validateToken(jwt, ServerHttpRequestHelper.getClientIp(request));
     }
 
     public Mono<Boolean> validateCred(CodeVerification codeVerification) {
