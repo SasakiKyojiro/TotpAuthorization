@@ -110,19 +110,16 @@ public class AuthService {
                                             return ResponseEntity.status(HttpStatus.OK).headers(headers).body(Boolean.TRUE);
                                         });
                             } else {
-                                return Mono.error(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Boolean.FALSE));
+                                return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Boolean.FALSE));
                             }
                         }
                 )
-                //.publishOn(Schedulers.boundedElastic())
-                .doOnNext(response ->
-                                userRepository.updateLastLogin(LocalDateTime.now(), username).then().block()
-//                    if (response.getStatusCode() == HttpStatus.OK) {
-//
-//                         ;
-//                    }
-                )
-                ;
+                .flatMap(response -> {
+                            if (response.getStatusCode() == HttpStatus.OK)
+                                return userRepository.updateLastLogin(LocalDateTime.now(), username).thenReturn(response);
+                            return Mono.just(response);
+                        }
+                );
     }
 
     public Mono<Boolean> valid2fa(CodeVerification codeVerification) {
