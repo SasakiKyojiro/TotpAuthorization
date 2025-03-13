@@ -63,23 +63,28 @@ public class AuthService {
                             .map(GrantedAuthority::getAuthority)
                             .map(role -> role.replace("ROLE_", ""))
                             .collect(Collectors.joining(","));
-                    String token = jwtTokenProvider.generateToken(username, roles, clientIp);
-
-                    JwtResponse jwtResponse = new JwtResponse(token);
                     HttpHeaders headers = new HttpHeaders();
                     String domainFormat = String.format(" Path=/; Domain=.%s;", domain);
-
-                    headers.add(SC, String.format("userrole=%s;%s", roles, domainFormat));
-                    headers.add(SC, String.format("username=%s;%s", username, domainFormat));
-                    headers.add(SC, String.format("token=%s;%s", token, domainFormat));
-
                     return userRepository.findByName(username)
                             .flatMap(user -> totpRepository.findEnabledById(user.getId()))
-                            .map(enable -> ValidateResponse.builder()
-                                    .success(true)
-                                    .token(jwtResponse)
-                                    .f2pa(enable)
-                                    .build())
+                            .map(enable -> {
+                                if (enable) {
+                                    return ValidateResponse.builder()
+                                            .success(true)
+                                            .f2pa(enable)
+                                            .build();
+                                }
+                                String token = jwtTokenProvider.generateToken(username, roles, clientIp);
+                                JwtResponse jwtResponse = new JwtResponse(token);
+                                headers.add(SC, String.format("userrole=%s;%s", roles, domainFormat));
+                                headers.add(SC, String.format("username=%s;%s", username, domainFormat));
+                                headers.add(SC, String.format("token=%s;%s", token, domainFormat));
+                                return ValidateResponse.builder()
+                                        .success(true)
+                                        .token(jwtResponse)
+                                        .f2pa(enable)
+                                        .build();
+                            })
                             .map(response -> ResponseEntity.ok().headers(headers).body(response));
                 })
                 .doOnError(ex -> log.error("auth error: {}", ex.getMessage()))
