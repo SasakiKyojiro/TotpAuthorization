@@ -5,6 +5,7 @@ import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Repository
@@ -27,12 +28,6 @@ public interface UserRepository extends R2dbcRepository<Member, UUID> {
     @Query("DELETE FROM auth.member WHERE id = :id ")
     Mono<Void> deleteById(UUID id);
 
-    @Query(value = "SELECT m.id, m.name, m.password_hash " +
-//            "array_agg(a.role) AS roles " +
-            "FROM auth.member m \n" +
-            "JOIN auth.member_authorities ma ON m.id = ma.\"userId\" \n" +
-//            "JOIN auth.authorities a ON ma.\"rolesId\" = a.id " +
-            "WHERE (ma.active = true AND m.name=:username)  " +
-            "GROUP BY m.id, m.name, m.password_hash")
-    Mono<MemberAuth> findAuthByUsername(String username);
+    @Query("UPDATE auth.member set last_login=:date where name=:username")
+    Mono<Void> updateLastLogin(LocalDateTime date, String username);
 }

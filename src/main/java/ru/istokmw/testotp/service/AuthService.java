@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,13 +17,17 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import ru.istokmw.testotp.config.JwtTokenProvider;
-import ru.istokmw.testotp.dto.*;
+import ru.istokmw.testotp.dto.CodeVerification;
+import ru.istokmw.testotp.dto.EmailDto;
+import ru.istokmw.testotp.dto.LoginRequestDto;
+import ru.istokmw.testotp.dto.ValidateResponse;
 import ru.istokmw.testotp.integration.TotpManager;
 import ru.istokmw.testotp.jpa.TotpRepository;
 import ru.istokmw.testotp.jpa.UserRepository;
 import ru.istokmw.testotp.util.ServerHttpRequestHelper;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
@@ -53,40 +58,30 @@ public class AuthService {
     public Mono<ResponseEntity<ValidateResponse>> auth(LoginRequestDto login, ServerHttpRequest request) {
         String clientIp = ServerHttpRequestHelper.getClientIp(request);
         String username = login.email();
-
         return authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(username, login.password()))
-                .publishOn(Schedulers.boundedElastic())
-                .flatMap(authentication -> {
-                    Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-                    String roles = authorities.stream()
-                            .map(GrantedAuthority::getAuthority)
-                            .map(role -> role.replace("ROLE_", ""))
-                            .collect(Collectors.joining(","));
-                    HttpHeaders headers = new HttpHeaders();
-                    String domainFormat = String.format(" Path=/; Domain=.%s;", domain);
-                    return userRepository.findByName(username)
-                            .flatMap(user -> totpRepository.findEnabledById(user.getId()))
-                            .map(enable -> {
-                                if (enable) {
-                                    return ValidateResponse.builder()
+                .flatMap(authentication ->
+                        userRepository.findByName(username)
+                                .flatMap(user -> totpRepository.findEnabledById(user.getId()))
+                                .map(enable -> {
+                                    if (enable) {
+                                        return ValidateResponse.builder()
+                                                .success(true)
+                                                .f2pa(true)
+                                                .build();
+                                    } else return ValidateResponse.builder()
                                             .success(true)
-                                            .f2pa(enable)
+                                            .f2pa(false)
                                             .build();
-                                }
-                                String token = jwtTokenProvider.generateToken(username, roles, clientIp);
-                                JwtResponse jwtResponse = new JwtResponse(token);
-                                headers.add(SC, String.format("userrole=%s;%s", roles, domainFormat));
-                                headers.add(SC, String.format("username=%s;%s", username, domainFormat));
-                                headers.add(SC, String.format("token=%s;%s", token, domainFormat));
-                                return ValidateResponse.builder()
-                                        .success(true)
-                                        .token(jwtResponse)
-                                        .f2pa(enable)
-                                        .build();
-                            })
-                            .map(response -> ResponseEntity.ok().headers(headers).body(response));
-                })
+                                })
+                                .map(response -> {
+                                    if (!response.getF2pa()) {
+                                        HttpHeaders headers = generateToken(username, authentication, clientIp);
+                                        return ResponseEntity.ok().headers(headers).body(response);
+                                    }
+                                    return ResponseEntity.ok().body(response);
+                                })
+                )
                 .doOnError(ex -> log.error("auth error: {}", ex.getMessage()))
                 .onErrorReturn(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                         ValidateResponse.builder()
@@ -100,20 +95,34 @@ public class AuthService {
         return jwtTokenProvider.validateToken(jwt, ServerHttpRequestHelper.getClientIp(request));
     }
 
-    public Mono<Boolean> validateCred(CodeVerification codeVerification) {
-        return totpManager.verifyCode(
-                        totpRepository.findSecretByUserName(codeVerification.email()),
-                        codeVerification.code()
-                ).publishOn(Schedulers.boundedElastic())
-                .map(response -> {
-                            if (response)
-                                totpRepository
-                                        .updateLastUsedById(userRepository.findIdByName(codeVerification.email()), LocalDate.now())
-                                        .then()
-                                        .subscribe();
-                            return response;
+
+    public Mono<ResponseEntity<Boolean>> validateCred(CodeVerification codeVerification, ServerHttpRequest request) {
+        String clientIp = ServerHttpRequestHelper.getClientIp(request);
+        String username = codeVerification.email();
+        return totpManager.verifyCode(totpRepository.findSecretByUserName(username), codeVerification.code())
+                .flatMap(response -> {
+                            log.info(response.toString());
+                            if (response) {
+                                return authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, codeVerification.password()))
+                                        .map(authentication -> {
+                                            log.info(authentication.toString());
+                                            HttpHeaders headers = generateToken(username, authentication, clientIp);
+                                            return ResponseEntity.status(HttpStatus.OK).headers(headers).body(Boolean.TRUE);
+                                        });
+                            } else {
+                                return Mono.error(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Boolean.FALSE));
+                            }
                         }
-                );
+                )
+                //.publishOn(Schedulers.boundedElastic())
+                .doOnNext(response ->
+                                userRepository.updateLastLogin(LocalDateTime.now(), username).then().block()
+//                    if (response.getStatusCode() == HttpStatus.OK) {
+//
+//                         ;
+//                    }
+                )
+                ;
     }
 
     public Mono<Boolean> valid2fa(CodeVerification codeVerification) {
@@ -162,5 +171,21 @@ public class AuthService {
                     }
                     return Mono.just(false);
                 });
+    }
+
+
+    private HttpHeaders generateToken(String username, Authentication authentication, String clientIp) {
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        String roles = authorities.stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(role -> role.replace("ROLE_", ""))
+                .collect(Collectors.joining(","));
+        HttpHeaders headers = new HttpHeaders();
+        String token = jwtTokenProvider.generateToken(username, roles, clientIp);
+        String domainFormat = String.format(" Path=/; Domain=.%s;", domain);
+        headers.add(SC, String.format("userrole=%s;%s", roles, domainFormat));
+        headers.add(SC, String.format("username=%s;%s", username, domainFormat));
+        headers.add(SC, String.format("token=%s;%s", token, domainFormat));
+        return headers;
     }
 }

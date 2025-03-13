@@ -44,7 +44,8 @@ public class SecurityConfiguration {
                     authorizeExchangeSpec.pathMatchers(
                             "/auth/login",
                             "/auth/login/**",
-                            "/auth/register"
+                            "/auth/register",
+                            "/auth/generate"
                     ).permitAll();
                     authorizeExchangeSpec.anyExchange().authenticated();
                 })

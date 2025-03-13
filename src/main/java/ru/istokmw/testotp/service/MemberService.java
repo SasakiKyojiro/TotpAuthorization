@@ -2,11 +2,11 @@ package ru.istokmw.testotp.service;
 
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import ru.istokmw.testotp.integration.TotpManager;
 import ru.istokmw.testotp.jpa.Member;
-import ru.istokmw.testotp.jpa.TOTP;
 import ru.istokmw.testotp.jpa.TotpRepository;
 import ru.istokmw.testotp.jpa.UserRepository;
 
@@ -25,13 +25,12 @@ public class MemberService {
         this.userRepository = userRepository;
     }
 
-    public Mono<TOTP> findById(UUID id) {
-        return totpRepository.findById(id);
+    public Mono<ResponseEntity<Boolean>> create() {
+        return Mono.just(ResponseEntity.ok().body(true));
     }
 
-    public Mono<Member> findMemberByName(String name) {
-        log.info("find member by name: {}", name);
-        return userRepository.findById(userRepository.findIdByName(name));
+    public Mono<Void> updateMember(Member member) {
+        return Mono.empty();
     }
 
     public Mono<Boolean> deleteMember(UUID id) {

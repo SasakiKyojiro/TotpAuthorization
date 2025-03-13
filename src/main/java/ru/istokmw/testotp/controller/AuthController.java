@@ -57,8 +57,8 @@ public class AuthController {
     }
 
     @PostMapping("/login/otp")
-    public Mono<ResponseEntity<Boolean>> otp(@RequestBody @Validated CodeVerification codeVerification) {
-        return authService.validateCred(codeVerification).map(response -> ResponseEntity.ok().body(response));
+    public Mono<ResponseEntity<Boolean>> otp(ServerHttpRequest request, @RequestBody @Validated CodeVerification codeVerification) {
+        return authService.validateCred(codeVerification, request);
     }
 
     @PostMapping("/login/validate")
