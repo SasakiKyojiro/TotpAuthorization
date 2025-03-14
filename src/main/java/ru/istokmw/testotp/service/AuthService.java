@@ -64,22 +64,22 @@ public class AuthService {
                         userRepository.findByName(username)
                                 .flatMap(user -> totpRepository.findEnabledById(user.getId()))
                                 .map(enable -> {
-                                    if (enable) {
+                                    if (enable)
                                         return ValidateResponse.builder()
                                                 .success(true)
                                                 .f2pa(true)
                                                 .build();
-                                    } else return ValidateResponse.builder()
+                                    else return ValidateResponse.builder()
                                             .success(true)
                                             .f2pa(false)
                                             .build();
                                 })
                                 .map(response -> {
-                                    if (!response.getF2pa()) {
-                                        HttpHeaders headers = generateToken(username, authentication, clientIp);
-                                        return ResponseEntity.ok().headers(headers).body(response);
-                                    }
-                                    return ResponseEntity.ok().body(response);
+                                    if (!response.getF2pa())
+                                        return ResponseEntity.status(HttpStatus.OK)
+                                                .headers(generateToken(username, authentication, clientIp))
+                                                .body(response);
+                                    return ResponseEntity.status(HttpStatus.OK).body(response);
                                 })
                 )
                 .doOnError(ex -> log.error("auth error: {}", ex.getMessage()))
@@ -87,7 +87,13 @@ public class AuthService {
                         ValidateResponse.builder()
                                 .success(false)
                                 .message("Username or password is incorrect")
-                                .build()));
+                                .build()))
+                .flatMap(response -> {
+                            if (response.getBody() != null && response.getStatusCode().equals(HttpStatus.OK) && !response.getBody().getF2pa())
+                                return userRepository.updateLastLogin(LocalDateTime.now(), username).thenReturn(response);
+                            return Mono.just(response);
+                        }
+                );
     }
 
 
@@ -101,11 +107,9 @@ public class AuthService {
         String username = codeVerification.email();
         return totpManager.verifyCode(totpRepository.findSecretByUserName(username), codeVerification.code())
                 .flatMap(response -> {
-                            log.info(response.toString());
                             if (response) {
                                 return authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, codeVerification.password()))
                                         .map(authentication -> {
-                                            log.info(authentication.toString());
                                             HttpHeaders headers = generateToken(username, authentication, clientIp);
                                             return ResponseEntity.status(HttpStatus.OK).headers(headers).body(Boolean.TRUE);
                                         });
@@ -125,16 +129,13 @@ public class AuthService {
     public Mono<Boolean> valid2fa(CodeVerification codeVerification) {
         return totpManager.verifyCode(
                         totpRepository.findSecretByUserName(codeVerification.email()),
-                        codeVerification.code()
-                )
-                .publishOn(Schedulers.boundedElastic())
-                .map(response -> {
-                    if (response) {
-                        totpRepository.updateIssuedAtById(userRepository.findIdByName(codeVerification.email()), LocalDate.now())
-                                .then()
-                                .subscribe();
-                    }
-                    return response;
+                        codeVerification.code())
+                .flatMap(response -> {
+                    if (response)
+                        return totpRepository.updateIssuedAtById(
+                                        userRepository.findIdByName(codeVerification.email()), LocalDate.now())
+                                .thenReturn(true);
+                    return Mono.just(false);
                 });
     }
 
@@ -161,11 +162,10 @@ public class AuthService {
                 .defaultIfEmpty(false)
                 .publishOn(Schedulers.boundedElastic())
                 .flatMap(result -> {
-                    if (result) {
+                    if (result)
                         return userRepository.findIdByName(loginRequestDto.email())
                                 .flatMap(userId -> totpRepository.insert(userId, totpManager.generateSecret(), totpManager.generateRecovery()))
                                 .thenReturn(true);
-                    }
                     return Mono.just(false);
                 });
     }

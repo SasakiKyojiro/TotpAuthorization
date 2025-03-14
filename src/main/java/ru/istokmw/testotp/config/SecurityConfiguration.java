@@ -42,12 +42,18 @@ public class SecurityConfiguration {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(authorizeExchangeSpec -> {
                     authorizeExchangeSpec.pathMatchers(
-                            "/auth/login",
-                            "/auth/login/**",
-                            "/auth/register",
-                            "/auth/generate"
-                    ).permitAll();
-                    authorizeExchangeSpec.anyExchange().authenticated();
+                                    "/auth/login",
+                                    "/auth/login/**",
+                                    "/auth/register",
+                                    "/auth/generate"
+                            ).permitAll()
+                            .pathMatchers("/test/admin/**").hasRole("ADMIN")
+                            .pathMatchers("test/buyer/**").hasRole("BUYER")
+                            .pathMatchers("test/distributer/**").hasRole("DISTRIBUTOR")
+                            .pathMatchers("test/seller/**").hasRole("SELLER")
+                            .pathMatchers("test/guest/**").hasRole("GUEST")
+                            .pathMatchers("test/manufacture/**").hasRole("MANUFACTURER")
+                            .anyExchange().authenticated();
                 })
                 .authenticationManager(authenticationManagerService.getAuthenticationManager())
                 .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(authenticationEntryPoint()))

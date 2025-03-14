@@ -9,7 +9,7 @@ import ru.istokmw.testotp.enums.Role;
 import java.util.UUID;
 
 @Data
-@Table(name = "materialized_member_auth_info", schema = "auth")
+@Table(name = "member_auth_info", schema = "auth")
 public class MemberAuth {
     @Id
     @Column(value = "id")
